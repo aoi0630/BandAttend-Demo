@@ -107,6 +107,14 @@ def seed() -> None:
         raise SystemExit("先に database/init_db.py を実行してください。")
     admin_id = int(admin["id"])
 
+    # Vercelのコールドスタートごとに大量の架空データを書き直さない。
+    # 既に最新版が入っている場合は読み取り1回で終了する。
+    if conn.execute(
+        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v3'"
+    ).fetchone():
+        conn.close()
+        return
+
     demo_id = upsert_member(
         conn, DEMO_STUDENT_ID, DEMO_NAME, 2, "2009-04-15", "クラリネット", read_only=1
     )
@@ -215,7 +223,7 @@ def seed() -> None:
             )
             event_ids.append(int(cur.lastrowid))
 
-        past_event_ids = [event_id for event_id, row in zip(event_ids, event_rows) if row[0] < today][-16:]
+        past_event_ids = [event_id for event_id, row in zip(event_ids, event_rows) if row[0] < today][-4:]
         for member_index, member_id in enumerate(member_ids):
             for event_index, event_id in enumerate(past_event_ids):
                 status = "出席"
