@@ -551,30 +551,38 @@ function HomeScreen({ setActive, token, currentUser }) {
 
     let ignore = false;
 
-    fetchJsonCached(token, "/api/home/next-performance", { force: homeRefreshKey > 0 })
-      .then((payload) => {
-        if (ignore) return;
-        const next = payload.showNextPerformance ? normalizeNextPerformance(payload.nextPerformance) : null;
-        setFastNextPerformance(next);
-        saveNextPerformance({ ...payload, nextPerformance: next });
-      })
-      .catch(() => {});
-
     async function loadHome() {
       setHomeError("");
       try {
-        const [data, publicationData] = await Promise.all([
-          fetchJsonCached(token, homePath, { force: true, errorMessage: "ホーム情報を読み込めませんでした" }),
-          fetchJsonCached(token, "/api/publications", { force: homeRefreshKey > 0 }),
-        ]);
+        // 初期表示に必要なホーム情報だけを最優先で取得する。
+        // 公開統計や他画面の先読みを待たせないことで、ログイン後すぐ内容を表示する。
+        const data = await fetchJsonCached(token, homePath, {
+          force: true,
+          errorMessage: "ホーム情報を読み込めませんでした",
+        });
         if (!ignore) {
           setHomeData(data);
           setLeaveStatusResolved(true);
           const next = data.showNextPerformance ? normalizeNextPerformance(data.nextPerformance) : null;
           setFastNextPerformance(next);
           saveNextPerformance({ showNextPerformance: data.showNextPerformance, nextPerformance: next });
-          setPublications((publicationData.items || []).filter((item) => item.isPublished));
-          prefetchCommonScreens(token, currentUser);
+
+          fetchJsonCached(token, "/api/publications", { force: homeRefreshKey > 0 })
+            .then((publicationData) => {
+              if (!ignore) {
+                setPublications((publicationData.items || []).filter((item) => item.isPublished));
+              }
+            })
+            .catch(() => {});
+
+          const prefetch = () => {
+            if (!ignore) prefetchCommonScreens(token, currentUser);
+          };
+          if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(prefetch, { timeout: 2500 });
+          } else {
+            window.setTimeout(prefetch, 800);
+          }
         }
       } catch (err) {
         if (!ignore) setHomeError(err.message || "ホーム情報を読み込めませんでした");
