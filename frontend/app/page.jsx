@@ -48,6 +48,24 @@ const configuredApiBase = process.env.NEXT_PUBLIC_API_BASE;
 const API_BASE = isPortfolioDemo
   ? "https://bandattend-portfolio-demo-api.vercel.app"
   : (isLocalFrontend ? (configuredApiBase || "http://localhost:8000") : "");
+
+async function fetchApi(url, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  try {
+    return await window.fetch(url, options);
+  } catch (error) {
+    if (!(error instanceof TypeError) || method !== "GET") throw error;
+    await new Promise((resolve) => window.setTimeout(resolve, 800));
+    try {
+      return await window.fetch(url, options);
+    } catch (retryError) {
+      if (retryError instanceof TypeError) {
+        throw new Error("接続に失敗しました。通信状態を確認して、もう一度お試しください");
+      }
+      throw retryError;
+    }
+  }
+}
 const eventTypes = ["通常練習", "合奏", "分奏", "パート練習", "本番", "コンクール", "定期演奏会", "依頼演奏", "その他"];
 const partOptions = ["フルート", "クラリネット", "サックス", "トランペット", "ホルン", "トロンボーン", "ユーフォニアム", "バスパート", "パーカッション"];
 const weekdayOptions = ["月", "火", "水", "木", "金", "土", "日"];
@@ -202,7 +220,7 @@ async function fetchJsonCached(token, path, options = {}) {
     if (pending) return pending;
   }
   const request = (async () => {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetchApi(`${API_BASE}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) throw new Error(options.errorMessage || "読み込めませんでした");
@@ -606,7 +624,7 @@ function HomeScreen({ setActive, token, currentUser }) {
     setHomeError("");
     setHomeMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/birthday-messages`, {
+      const response = await fetchApi(`${API_BASE}/api/birthday-messages`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ recipientId, message }),
@@ -626,7 +644,7 @@ function HomeScreen({ setActive, token, currentUser }) {
   async function reactToBirthdayMessage(messageId) {
     setHomeError("");
     try {
-      const response = await fetch(`${API_BASE}/api/birthday-messages/${messageId}/reaction`, {
+      const response = await fetchApi(`${API_BASE}/api/birthday-messages/${messageId}/reaction`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -648,7 +666,7 @@ function HomeScreen({ setActive, token, currentUser }) {
     const endpoint = notificationId
       ? `${API_BASE}/api/notifications/${notificationId}/read`
       : `${API_BASE}/api/notifications/read-visible`;
-    const response = await fetch(endpoint, {
+    const response = await fetchApi(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -667,7 +685,7 @@ function HomeScreen({ setActive, token, currentUser }) {
     setHomeMessage("");
     setHomeAttendanceLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/attendance/confirm`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance/confirm`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -697,7 +715,7 @@ function HomeScreen({ setActive, token, currentUser }) {
     setHomeMessage("");
     setHomeAttendanceLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/attendance`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -741,7 +759,7 @@ function HomeScreen({ setActive, token, currentUser }) {
     event.preventDefault();
     setSavingSystemLink(true); setHomeError(""); setHomeMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/admin/external-system-links${editingSystemLinkId ? `/${editingSystemLinkId}` : ""}`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/external-system-links${editingSystemLinkId ? `/${editingSystemLinkId}` : ""}`, {
         method: editingSystemLinkId ? "PATCH" : "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(systemLinkForm),
@@ -762,7 +780,7 @@ function HomeScreen({ setActive, token, currentUser }) {
   async function removeSystemLink(link) {
     if (!window.confirm(`${link.name}のリンクを削除しますか？`)) return;
     setHomeError(""); setHomeMessage("");
-    const response = await fetch(`${API_BASE}/api/admin/external-system-links/${link.id}`, {
+    const response = await fetchApi(`${API_BASE}/api/admin/external-system-links/${link.id}`, {
       method: "DELETE", headers: { Authorization: `Bearer ${token}` },
     });
     const body = await response.json().catch(() => ({}));
@@ -1163,7 +1181,7 @@ function TasksScreen({ token, currentUser, onUnreadNoticesChange }) {
 
   async function addTodo() {
     if (!title.trim()) return;
-    const response = await fetch(`${API_BASE}/api/todos`, {
+    const response = await fetchApi(`${API_BASE}/api/todos`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ scope, part: scope === "パート" ? currentUser?.part : null, category, title }),
@@ -1182,7 +1200,7 @@ function TasksScreen({ token, currentUser, onUnreadNoticesChange }) {
   }
 
   async function toggleTodo(id) {
-    const response = await fetch(`${API_BASE}/api/todos/${id}/toggle`, {
+    const response = await fetchApi(`${API_BASE}/api/todos/${id}/toggle`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1194,7 +1212,7 @@ function TasksScreen({ token, currentUser, onUnreadNoticesChange }) {
 
   async function removeTodo(todo) {
     if (!window.confirm(`完了済みの「${todo.title}」を削除しますか？`)) return;
-    const response = await fetch(`${API_BASE}/api/todos/${todo.id}`, {
+    const response = await fetchApi(`${API_BASE}/api/todos/${todo.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1256,7 +1274,7 @@ function PracticeReflectionPanel({ token, event }) {
   const [error, setError] = useState("");
 
   async function load() {
-    const response = await fetch(`${API_BASE}/api/events/${event.id}/reflections`, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetchApi(`${API_BASE}/api/events/${event.id}/reflections`, { headers: { Authorization: `Bearer ${token}` } });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "振り返りを読み込めませんでした");
     setData(payload);
@@ -1272,7 +1290,7 @@ function PracticeReflectionPanel({ token, event }) {
   async function save() {
     setMessage(""); setError("");
     const url = editingId ? `${API_BASE}/api/events/${event.id}/reflections/${editingId}` : `${API_BASE}/api/events/${event.id}/reflections`;
-    const response = await fetch(url, {
+    const response = await fetchApi(url, {
       method: editingId ? "PATCH" : "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -1292,7 +1310,7 @@ function PracticeReflectionPanel({ token, event }) {
 
   async function remove(item) {
     if (!window.confirm("この振り返りを削除しますか？")) return;
-    const response = await fetch(`${API_BASE}/api/events/${event.id}/reflections/${item.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetchApi(`${API_BASE}/api/events/${event.id}/reflections/${item.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) { const payload = await response.json().catch(() => ({})); setError(payload.detail || "削除できませんでした"); return; }
     if (editingId === item.id) { setEditingId(null); setForm({ targetScope: "全体", title: "", content: "" }); }
     setMessage("振り返りを削除しました。"); load().catch((err) => setError(err.message));
@@ -1363,7 +1381,7 @@ function CalendarScreen({ token, currentUser, setActive }) {
     setAttendanceMessage("");
 
     try {
-      const response = await fetch(`${API_BASE}/api/attendance/confirm`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance/confirm`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1392,7 +1410,7 @@ function CalendarScreen({ token, currentUser, setActive }) {
     setAttendanceMessage("");
 
     try {
-      const response = await fetch(`${API_BASE}/api/attendance`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1429,7 +1447,7 @@ function CalendarScreen({ token, currentUser, setActive }) {
     setCalendarError("");
     setAttendanceMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/attendance/event/${event.id}`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance/event/${event.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1666,7 +1684,7 @@ function AttendanceScreen({ token, currentUser }) {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE}/api/attendance`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1700,7 +1718,7 @@ function AttendanceScreen({ token, currentUser }) {
     setMessage("");
     setError("");
     try {
-      const response = await fetch(`${API_BASE}/api/leave-requests`, {
+      const response = await fetchApi(`${API_BASE}/api/leave-requests`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: selectedEvent.id, reason }),
@@ -1729,7 +1747,7 @@ function AttendanceScreen({ token, currentUser }) {
     setMessage("");
     setError("");
     try {
-      const response = await fetch(`${API_BASE}/api/attendance/${attendance.id}`, {
+      const response = await fetchApi(`${API_BASE}/api/attendance/${attendance.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1902,7 +1920,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
   }, [filter, token]);
 
   function loadSharedReports() {
-    fetch(`${API_BASE}/api/absence-report/shares`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchApi(`${API_BASE}/api/absence-report/shares`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.ok ? response.json() : { items: [] })
       .then((data) => setSharedReports(data.items || []))
       .catch(() => setSharedReports([]));
@@ -1915,7 +1933,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
   async function deleteSharedReport(id) {
     if (!window.confirm("この共有済みリストを削除しますか？共有相手からも見えなくなります。")) return;
     setNoticeError("");
-    const response = await fetch(`${API_BASE}/api/admin/absence-report/shares/${id}`, {
+    const response = await fetchApi(`${API_BASE}/api/admin/absence-report/shares/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -1937,7 +1955,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
   async function markRead(id) {
     setNoticeError("");
     try {
-      const response = await fetch(`${API_BASE}/api/announcements/${id}/read`, {
+      const response = await fetchApi(`${API_BASE}/api/announcements/${id}/read`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1956,7 +1974,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
   async function markApprovalNotificationRead(id) {
     setNoticeError("");
     try {
-      const response = await fetch(`${API_BASE}/api/notifications/${id}/read`, {
+      const response = await fetchApi(`${API_BASE}/api/notifications/${id}/read`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1973,7 +1991,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
   async function deleteNotice(id) {
     setNoticeError("");
     try {
-      const response = await fetch(`${API_BASE}/api/announcements/${id}`, {
+      const response = await fetchApi(`${API_BASE}/api/announcements/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1993,7 +2011,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
     setNoticeError("");
     setNoticeMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/announcements`, {
+      const response = await fetchApi(`${API_BASE}/api/announcements`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2034,7 +2052,7 @@ function NoticesScreen({ token, onUnreadNoticesChange, currentUser }) {
     setOpenReadersId(noticeId);
     if (noticeReaders[noticeId]) return;
     try {
-      const response = await fetch(`${API_BASE}/api/announcements/${noticeId}/reads`, {
+      const response = await fetchApi(`${API_BASE}/api/announcements/${noticeId}/reads`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => ({}));
@@ -2187,7 +2205,7 @@ function ContactScreen({ token }) {
     setContactError("");
     setContactMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/part-memos`, {
+      const response = await fetchApi(`${API_BASE}/api/part-memos`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2217,7 +2235,7 @@ function ContactScreen({ token }) {
     setContactError("");
     setContactMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/part-memos/${id}`, {
+      const response = await fetchApi(`${API_BASE}/api/part-memos/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -2576,7 +2594,7 @@ function ProfileScreen({ currentUser, token, onUserUpdate }) {
     setProfileMessage("");
     setSaving(true);
     try {
-      const response = await fetch(`${API_BASE}/api/profile`, {
+      const response = await fetchApi(`${API_BASE}/api/profile`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -2700,7 +2718,7 @@ function ScopedMemberAttendance({ token, title }) {
   useEffect(() => {
     let ignore = false;
     setError("");
-    fetch(`${API_BASE}/api/operations/member-attendance?month=${encodeURIComponent(month)}`, {
+    fetchApi(`${API_BASE}/api/operations/member-attendance?month=${encodeURIComponent(month)}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (response) => {
@@ -2779,7 +2797,7 @@ function ApprovalsScreen({ token, setActive, currentUser }) {
 
   async function approve(item) {
     const absenceType = item.status === "出席" ? "なし" : item.absenceType === "休暇申請" ? "正当" : decisions[item.id] || "正当";
-    const response = await fetch(`${API_BASE}/api/approvals/${item.id}/approve`, {
+    const response = await fetchApi(`${API_BASE}/api/approvals/${item.id}/approve`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ absenceType }),
@@ -2794,7 +2812,7 @@ function ApprovalsScreen({ token, setActive, currentUser }) {
 
   async function reject(item) {
     if (!window.confirm(`${item.memberName}さんの${item.status}申請を拒否しますか？`)) return;
-    const response = await fetch(`${API_BASE}/api/approvals/${item.id}/reject`, {
+    const response = await fetchApi(`${API_BASE}/api/approvals/${item.id}/reject`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -2810,7 +2828,7 @@ function ApprovalsScreen({ token, setActive, currentUser }) {
 
   async function cancelAttendance(item) {
     if (!window.confirm(`${item.memberName}さんの出席申請を拒否して、出席扱いを取り消しますか？`)) return;
-    const response = await fetch(`${API_BASE}/api/approvals/${item.id}/attendance`, {
+    const response = await fetchApi(`${API_BASE}/api/approvals/${item.id}/attendance`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -2926,7 +2944,7 @@ function MembersScreen({ token, setActive }) {
   }
 
   async function loadRegistrationRequests() {
-    const response = await fetch(`${API_BASE}/api/member-registration-requests`, {
+    const response = await fetchApi(`${API_BASE}/api/member-registration-requests`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const body = await response.json().catch(() => ({}));
@@ -2936,7 +2954,7 @@ function MembersScreen({ token, setActive }) {
 
   async function reviewRegistration(requestId, action) {
     const assignment = registrationAssignments[requestId] || { grade: 1, part: partOptions[0] };
-    const response = await fetch(`${API_BASE}/api/member-registration-requests/${requestId}/${action}`, {
+    const response = await fetchApi(`${API_BASE}/api/member-registration-requests/${requestId}/${action}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ note: reviewNotes[requestId] || "", ...assignment }),
@@ -2952,7 +2970,7 @@ function MembersScreen({ token, setActive }) {
 
   async function add(event) {
     event.preventDefault();
-    const response = await fetch(`${API_BASE}/api/members`, {
+    const response = await fetchApi(`${API_BASE}/api/members`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -2999,7 +3017,7 @@ function MembersScreen({ token, setActive }) {
   async function saveEdit(event) {
     event.preventDefault();
     if (!editingMemberId) return;
-    const response = await fetch(`${API_BASE}/api/members/${editingMemberId}`, {
+    const response = await fetchApi(`${API_BASE}/api/members/${editingMemberId}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3022,7 +3040,7 @@ function MembersScreen({ token, setActive }) {
 
   async function removeMember(member) {
     if (!window.confirm(`${member.name}さんを部員一覧から完全に削除しますか？\n出欠記録や休暇権利など、この部員に紐づくデータも削除されます。`)) return;
-    const response = await fetch(`${API_BASE}/api/members/${member.id}`, {
+    const response = await fetchApi(`${API_BASE}/api/members/${member.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -3038,7 +3056,7 @@ function MembersScreen({ token, setActive }) {
 
   async function resetMemberPin(member) {
     if (!window.confirm(`${member.name}さんの暗証番号をリセットしますか？\n次回は学籍番号と初期暗証番号0でログインし、本人が新しい4桁の暗証番号を設定します。`)) return;
-    const response = await fetch(`${API_BASE}/api/admin/members/${member.id}/reset-pin`, {
+    const response = await fetchApi(`${API_BASE}/api/admin/members/${member.id}/reset-pin`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -3179,10 +3197,10 @@ function StatisticsScreen({ token, setActive, currentUser }) {
   const [memberAttendance, setMemberAttendance] = useState([]);
   const [selectedMemberId, setSelectedMemberId] = useState("");
   useEffect(() => {
-    fetch(`${API_BASE}/api/statistics?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchApi(`${API_BASE}/api/statistics?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.json()).then(setData);
     if (currentUser?.role === "管理者") {
-      fetch(`${API_BASE}/api/admin/member-attendance?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } })
+      fetchApi(`${API_BASE}/api/admin/member-attendance?month=${encodeURIComponent(month)}`, { headers: { Authorization: `Bearer ${token}` } })
         .then((response) => response.json())
         .then((payload) => {
           const items = payload.items || [];
@@ -3234,7 +3252,7 @@ function StatisticsScreen({ token, setActive, currentUser }) {
 function RemindersScreen({ token, setActive }) {
   const [data, setData] = useState({ event: null, members: [] });
   useEffect(() => {
-    fetch(`${API_BASE}/api/attendance/reminders`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchApi(`${API_BASE}/api/attendance/reminders`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.json()).then(setData);
   }, [token]);
   return <>
@@ -3260,7 +3278,7 @@ function PublicationsScreen({ token, setActive, currentUser }) {
   const [message, setMessage] = useState("");
 
   async function load() {
-    const response = await fetch(`${API_BASE}/api/publications`, {
+    const response = await fetchApi(`${API_BASE}/api/publications`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (response.ok) setItems((await response.json()).items || []);
@@ -3268,7 +3286,7 @@ function PublicationsScreen({ token, setActive, currentUser }) {
   useEffect(() => {
     if (!token) return;
     load();
-    fetch(`${API_BASE}/api/members`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchApi(`${API_BASE}/api/members`, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.json())
       .then((data) => {
         setDirectory(data);
@@ -3295,7 +3313,7 @@ function PublicationsScreen({ token, setActive, currentUser }) {
         : [];
 
   async function publish() {
-    const response = await fetch(`${API_BASE}/api/publications`, {
+    const response = await fetchApi(`${API_BASE}/api/publications`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -3315,7 +3333,7 @@ function PublicationsScreen({ token, setActive, currentUser }) {
   }
 
   async function toggle(id) {
-    await fetch(`${API_BASE}/api/publications/${id}/visibility`, {
+    await fetchApi(`${API_BASE}/api/publications/${id}/visibility`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -3323,7 +3341,7 @@ function PublicationsScreen({ token, setActive, currentUser }) {
   }
 
   async function remove(id) {
-    await fetch(`${API_BASE}/api/publications/${id}`, {
+    await fetchApi(`${API_BASE}/api/publications/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -3383,7 +3401,7 @@ function EventManagementScreen({ token, currentUser, setActive }) {
   async function loadEvents(selectedMonth = month) {
     setError("");
     try {
-      const response = await fetch(`${API_BASE}/api/events?month=${selectedMonth}`, {
+      const response = await fetchApi(`${API_BASE}/api/events?month=${selectedMonth}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => ({}));
@@ -3447,7 +3465,7 @@ function EventManagementScreen({ token, currentUser, setActive }) {
     setMessage("");
     setError("");
     try {
-      const response = await fetch(
+      const response = await fetchApi(
         editingId ? `${API_BASE}/api/events/${editingId}` : `${API_BASE}/api/events`,
         {
           method: editingId ? "PATCH" : "POST",
@@ -3477,7 +3495,7 @@ function EventManagementScreen({ token, currentUser, setActive }) {
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/events/${eventId}`, {
+      const response = await fetchApi(`${API_BASE}/api/events/${eventId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -3563,7 +3581,7 @@ function AbsenceReportScreen({ token, currentUser, setActive }) {
 
   useEffect(() => {
     if (currentUser?.role !== "管理者") return;
-    fetch(`${API_BASE}/api/admin/absence-report`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchApi(`${API_BASE}/api/admin/absence-report`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body.detail || "一覧を読み込めませんでした");
@@ -3596,7 +3614,7 @@ function AbsenceReportScreen({ token, currentUser, setActive }) {
     }
     setSharing(true); setError(""); setMessage("");
     try {
-      const response = await fetch(`${API_BASE}/api/admin/absence-report/shares`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/absence-report/shares`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ targetRoles, part: part || null, startDate: period.startDate, endDate: period.endDate }),
@@ -3915,7 +3933,7 @@ function OpsScreen({ setActive, currentUser, token }) {
       const query = new URLSearchParams(
         Object.fromEntries(Object.entries(period).filter(([, value]) => Boolean(value))),
       ).toString();
-      const response = await fetch(`${API_BASE}/api/admin/usage-stats?${query}`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/usage-stats?${query}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => ({}));
@@ -3938,7 +3956,7 @@ function OpsScreen({ setActive, currentUser, token }) {
     let ignore = false;
     setLeadershipStatsLoading(true);
     setLeadershipStatsError("");
-    fetch(`${API_BASE}/api/operations/leadership-stats`, { headers: { Authorization: `Bearer ${token}` } })
+    fetchApi(`${API_BASE}/api/operations/leadership-stats`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (response) => {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || "運営分析を読み込めませんでした");
@@ -3966,7 +3984,7 @@ function OpsScreen({ setActive, currentUser, token }) {
     setOperationActionMessage("");
     setOperationActionError("");
     try {
-      const response = await fetch(`${API_BASE}/api/admin/start-operation-phase/${phase}`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/start-operation-phase/${phase}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -3990,7 +4008,7 @@ function OpsScreen({ setActive, currentUser, token }) {
     setOperationActionMessage("");
     setOperationActionError("");
     try {
-      const response = await fetch(`${API_BASE}/api/admin/advance-year`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/advance-year`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -4007,7 +4025,7 @@ function OpsScreen({ setActive, currentUser, token }) {
 
   useEffect(() => {
     let ignore = false;
-    fetch(`${API_BASE}/api/operations/summary`, {
+    fetchApi(`${API_BASE}/api/operations/summary`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((response) => {
@@ -4036,7 +4054,7 @@ function OpsScreen({ setActive, currentUser, token }) {
     if (currentUser?.role !== "管理者") return;
     let cancelled = false;
     let maintenanceRetry = null;
-    fetch(`${API_BASE}/api/admin/leave-feature`, {
+    fetchApi(`${API_BASE}/api/admin/leave-feature`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (response) => {
@@ -4048,7 +4066,7 @@ function OpsScreen({ setActive, currentUser, token }) {
       .catch((err) => setLeaveFeatureError(err.message || "設定を読み込めませんでした"));
     async function loadMaintenance() {
       try {
-        const response = await fetch(`${API_BASE}/api/admin/maintenance`, {
+        const response = await fetchApi(`${API_BASE}/api/admin/maintenance`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json().catch(() => ({}));
@@ -4078,7 +4096,7 @@ function OpsScreen({ setActive, currentUser, token }) {
     setMaintenanceMessage("");
     setMaintenanceError("");
     try {
-      const response = await fetch(`${API_BASE}/api/admin/maintenance`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/maintenance`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
@@ -4099,7 +4117,7 @@ function OpsScreen({ setActive, currentUser, token }) {
     setLeaveFeatureMessage("");
     setLeaveFeatureError("");
     try {
-      const response = await fetch(`${API_BASE}/api/admin/leave-feature`, {
+      const response = await fetchApi(`${API_BASE}/api/admin/leave-feature`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
@@ -4443,7 +4461,7 @@ function SignIn({ onLogin }) {
 
     const earlyWarmup = API_BASE === "" ? window.__bandAttendApiWarmup : null;
     const warmupRequest = earlyWarmup
-      || fetch(`${API_BASE}/api/health?warm=${Date.now()}`, { cache: "no-store" });
+      || fetchApi(`${API_BASE}/api/health?warm=${Date.now()}`, { cache: "no-store" });
 
     warmupRequest
       .then((response) => {
@@ -4479,7 +4497,7 @@ function SignIn({ onLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const response = await fetchApi(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -4521,7 +4539,7 @@ function SignIn({ onLogin }) {
     setError("");
     setLoading(account.label);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const response = await fetchApi(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -4545,7 +4563,7 @@ function SignIn({ onLogin }) {
     if (pinSetup.pin !== pinSetup.confirmPin) return setError("確認用の暗証番号が一致しません");
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/setup-pin`, {
+      const response = await fetchApi(`${API_BASE}/api/auth/setup-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -4578,7 +4596,7 @@ function SignIn({ onLogin }) {
     if (registration.pin !== registration.confirmPin) return setError("確認用の暗証番号が一致しません");
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/member-registration-requests`, {
+      const response = await fetchApi(`${API_BASE}/api/member-registration-requests`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registration),
@@ -4717,8 +4735,8 @@ export default function App() {
       try {
         const headers = { Authorization: `Bearer ${auth.token}` };
         const [announcementResponse, notificationResponse] = await Promise.all([
-          fetch(`${API_BASE}/api/announcements?filter=unread`, { headers }),
-          fetch(`${API_BASE}/api/notifications?filter=unread`, { headers }),
+          fetchApi(`${API_BASE}/api/announcements?filter=unread`, { headers }),
+          fetchApi(`${API_BASE}/api/notifications?filter=unread`, { headers }),
         ]);
         if (!announcementResponse.ok || !notificationResponse.ok) return;
         const [announcementData, notificationData] = await Promise.all([
@@ -4753,7 +4771,7 @@ export default function App() {
     }
     let cancelled = false;
     async function checkMaintenance() {
-      const response = await fetch(`${API_BASE}/api/maintenance-status`).catch(() => null);
+      const response = await fetchApi(`${API_BASE}/api/maintenance-status`).catch(() => null);
       if (!response?.ok) return;
       const data = await response.json().catch(() => ({}));
       if (!cancelled) setMaintenanceActive(Boolean(data.enabled));
@@ -4783,7 +4801,7 @@ export default function App() {
     if (!auth?.token || !privacyAgreed) return;
     setSavingPrivacyPurpose(true);
     setPrivacySaveError("");
-    const response = await fetch(`${API_BASE}/api/profile/privacy-seen`, {
+    const response = await fetchApi(`${API_BASE}/api/profile/privacy-seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${auth.token}` },
     }).catch(() => null);
@@ -4805,7 +4823,7 @@ export default function App() {
   async function finishFirstGuide() {
     if (!auth?.token) return;
     setSavingGuide(true);
-    const response = await fetch(`${API_BASE}/api/profile/guide-seen`, {
+    const response = await fetchApi(`${API_BASE}/api/profile/guide-seen`, {
       method: "POST",
       headers: { Authorization: `Bearer ${auth.token}` },
     }).catch(() => null);
