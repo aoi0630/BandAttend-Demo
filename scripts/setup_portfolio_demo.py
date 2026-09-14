@@ -315,6 +315,132 @@ def seed() -> None:
             "INSERT INTO demo_seed_meta (seed_key) VALUES ('portfolio-v3')"
         )
 
+    # v4: 審査時にさまざまな運用場面を確認できる追加シナリオ。
+    # v3を導入済みの公開DBにも一度だけ追加し、新規DBではv3に続けて投入する。
+    if not conn.execute(
+        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v4'"
+    ).fetchone():
+        today = date.today()
+        scenario_events = [
+            (5, "13:00", "16:00", "自主練習", "希望者自主練習", "音楽室", 0,
+             "参加は任意です。基礎練習、個人練習、譜読みを中心に行います。"),
+            (12, "09:00", "17:00", "集中練習", "コンクール前集中練習", "講堂", 1,
+             "午前は基礎合奏、午後は課題曲と自由曲を通します。昼食、飲み物、譜面、チューナー、筆記用具を持参してください。長時間練習のため途中に休憩を設けます。"),
+            (19, "16:00", "18:30", "合奏", "先生による合奏指導", "音楽室", 1,
+             "先生来校日です。開始10分前までに合奏隊形を完成させてください。"),
+            (26, "09:00", "16:30", "ホール練習", "コンクール会場リハーサル", "市民文化会館", 1,
+             "本番と同じ配置で演奏します。楽器運搬担当は8時30分集合です。"),
+            (34, "16:00", "18:00", "ミーティング", "定期演奏会 選曲会", "視聴覚室", 0,
+             "候補曲の音源を聴き、演奏時間と編成を確認します。"),
+            (41, "13:00", "17:00", "学年練習", "学年別アンサンブル練習", "各教室", 0,
+             "1年・2年・3年に分かれてアンサンブル練習を行います。"),
+            (48, "09:30", "15:30", "録音", "アンサンブルコンテスト録音審査", "音楽室", 1,
+             "録音中は廊下を含めて静かにしてください。出演者以外は指定教室で待機します。"),
+            (55, "10:00", "15:00", "依頼演奏", "地域交流コンサート", "中央公民館", 1,
+             "地域行事での依頼演奏です。制服、譜面台、演奏用ファイルを持参してください。"),
+            (69, "13:00", "18:00", "リハーサル", "定期演奏会 通しリハーサル", "講堂", 1,
+             "司会、舞台転換、照明を含む通しリハーサルです。係ごとの動きも確認します。"),
+            (83, "09:00", "17:00", "本番", "定期演奏会", "市民文化会館", 1,
+             "集合時刻、持ち物、係の担当は事前のお知らせを確認してください。"),
+            (90, None, None, "休み", "活動休止日", None, 0,
+             "本日の部活動は休みです。"),
+        ]
+        scenario_event_ids = []
+        for offset, start, end, kind, title, location, teacher_visit, memo in scenario_events:
+            event_date = (today + timedelta(days=offset)).isoformat()
+            conn.execute(
+                """
+                INSERT INTO events
+                (date, start_time, end_time, event_type, title, location, memo,
+                 teacher_visit, created_by)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM events WHERE date=? AND title=?
+                )
+                """,
+                (event_date, start, end, kind, title, location, memo,
+                 teacher_visit, admin_id, event_date, title),
+            )
+            event = conn.execute(
+                "SELECT id FROM events WHERE date=? AND title=? ORDER BY id LIMIT 1",
+                (event_date, title),
+            ).fetchone()
+            scenario_event_ids.append(int(event["id"]))
+
+        scenario_members = {}
+        for student_id in (
+            "demo-flute", "demo-flute-2", "demo-clarinet-2",
+            "demo-trumpet", "demo-horn-2", "demo-euphonium",
+            "demo-bass", "demo-percussion",
+        ):
+            row = conn.execute(
+                "SELECT id FROM members WHERE student_id=?", (student_id,)
+            ).fetchone()
+            if row:
+                scenario_members[student_id] = int(row["id"])
+
+        attendance_scenarios = [
+            ("demo-flute", 1, "欠席", "学校行事と重なるため（サンプル）", "未承認", "なし"),
+            ("demo-clarinet-2", 1, "遅刻", "委員会終了後に参加するため（サンプル）", "未承認", "なし"),
+            ("demo-trumpet", 2, "早退", "通院のため（サンプル）", "承認済み", "正当"),
+            ("demo-horn-2", 3, "欠席", "家族行事のため（サンプル）", "承認済み", "正当"),
+            ("demo-euphonium", 4, "遅刻", "模擬試験終了後に参加（サンプル）", "拒否", "なし"),
+            ("demo-bass", 5, "欠席", "資格試験のため（サンプル）", "承認済み", "正当"),
+            ("demo-percussion", 6, "早退", "帰宅時間の都合（サンプル）", "未承認", "なし"),
+            ("demo-flute-2", 7, "欠席", "進路面談のため（サンプル）", "未承認", "なし"),
+        ]
+        for student_id, event_index, status, reason, approval, absence_type in attendance_scenarios:
+            member_id = scenario_members.get(student_id)
+            if member_id is None:
+                continue
+            reviewer = admin_id if approval in {"承認済み", "拒否"} else None
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO attendance
+                (member_id, event_id, status, reason, approval_status,
+                 absence_type, approved_by, approved_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?,
+                        CASE WHEN ? IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END)
+                """,
+                (member_id, scenario_event_ids[event_index], status, reason,
+                 approval, absence_type, reviewer, reviewer),
+            )
+
+        extra_announcements = [
+            ("コンクール前集中練習について", "集合時刻と持ち物を確認してください。昼食と十分な飲み物が必要です。", 1),
+            ("楽器運搬担当のお知らせ", "ホール練習日は、担当者のみ通常より30分早く集合してください。", 0),
+            ("定期演奏会の選曲アンケート", "候補曲を確認し、次回のミーティングまでに希望を回答してください。", 0),
+        ]
+        for title, message, important in extra_announcements:
+            conn.execute(
+                """
+                INSERT INTO announcements
+                (target_type, title, message, is_important, created_by)
+                SELECT '全体', ?, ?, ?, ?
+                WHERE NOT EXISTS (SELECT 1 FROM announcements WHERE title=?)
+                """,
+                (title, message, important, admin_id, title),
+            )
+
+        extra_todos = [
+            ("準備", "コンクールの持ち物を確認", "制服、譜面、チューナー、昼食、飲み物を確認する"),
+            ("係活動", "演奏会係の担当を確認", "舞台、受付、楽器運搬の担当表を確認する"),
+            ("提出", "選曲アンケートに回答", "定期演奏会で演奏したい曲を回答する"),
+        ]
+        for category, title, detail in extra_todos:
+            conn.execute(
+                """
+                INSERT INTO todos (scope, category, title, detail, created_by)
+                SELECT '全体', ?, ?, ?, ?
+                WHERE NOT EXISTS (SELECT 1 FROM todos WHERE title=?)
+                """,
+                (category, title, detail, admin_id, title),
+            )
+
+        conn.execute(
+            "INSERT INTO demo_seed_meta (seed_key) VALUES ('portfolio-v4')"
+        )
+
     conn.commit()
     conn.close()
     print("企業向けデモ環境を作成しました")
