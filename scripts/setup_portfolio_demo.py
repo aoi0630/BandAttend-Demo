@@ -110,7 +110,11 @@ def seed() -> None:
     # Vercelのコールドスタートごとに大量の架空データを書き直さない。
     # 既に最新版が入っている場合は読み取り1回で終了する。
     if conn.execute(
-        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v3'"
+        """
+        SELECT 1
+        WHERE EXISTS (SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v3')
+          AND EXISTS (SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v4')
+        """
     ).fetchone():
         conn.close()
         return

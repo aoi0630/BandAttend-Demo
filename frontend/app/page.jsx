@@ -46,7 +46,7 @@ const isPortfolioDemo =
   && window.location.hostname === "bandattend-portfolio-demo.vercel.app";
 const configuredApiBase = process.env.NEXT_PUBLIC_API_BASE;
 const API_BASE = isPortfolioDemo
-  ? "https://bandattend-portfolio-demo-api.vercel.app"
+  ? ""
   : (isLocalFrontend ? (configuredApiBase || "http://localhost:8000") : "");
 
 async function fetchApi(url, options = {}) {

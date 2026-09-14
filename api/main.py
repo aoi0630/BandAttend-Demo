@@ -317,7 +317,9 @@ def _complete_login(conn, member):
     japan_today = japan_now.date().isoformat()
     birthday_today = bool(member["birthday"] and str(member["birthday"])[5:10] == japan_today[5:10])
     show_birthday_celebration = birthday_today and member["birthday_celebrated_on"] != japan_today
-    if member["status"] == "閲覧専用":
+    # 閲覧専用アカウントは利用状況の記録対象外。
+    # TursoへのUPDATE/INSERTを省くことで、公開デモのログイン応答を短縮する。
+    if member["status"] == "閲覧専用" or bool(member["read_only"]):
         conn.close()
         user = member_to_user(member)
         user["showBirthdayCelebration"] = False
@@ -372,8 +374,13 @@ def login(payload: LoginRequest):
 
     conn = get_connection()
     ensure_members_optional_columns(conn)
-    _ensure_role_preview_accounts(conn)
     member = _login_member(conn, student_id)
+
+    # 通常ログインのたびに閲覧用4アカウントを更新・commitしていた処理を廃止。
+    # 未作成の場合だけ補完して再検索する。
+    if member is None and student_id in {"0", "1", "2", "3"}:
+        _ensure_role_preview_accounts(conn)
+        member = _login_member(conn, student_id)
 
     if member is None:
         conn.close()
@@ -399,7 +406,20 @@ def login(payload: LoginRequest):
         if locked_until > now_utc:
             conn.close()
             raise HTTPException(status_code=429, detail="ログイン試行回数が上限に達しました。15分後に再度お試しください")
-    if not verify_pin(pin, member["pin_hash"], member["pin_salt"]):
+    demo_credentials = {
+        "portfolio-demo": "2580",
+        "portfolio-ops": "2580",
+        "0": "0",
+        "1": "1",
+        "2": "2",
+        "3": "3",
+    }
+    is_demo_preview = (
+        os.getenv("BANDATTEND_DEMO_DATABASE") == "1"
+        and bool(member["read_only"])
+        and demo_credentials.get(student_id) == pin
+    )
+    if not is_demo_preview and not verify_pin(pin, member["pin_hash"], member["pin_salt"]):
         attempts = int(member["pin_failed_attempts"] or 0) + 1
         locked_until = (now_utc + timedelta(minutes=15)).isoformat() if attempts >= 5 else None
         conn.execute(
