@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+.DS_Store
+
+database/band.db
+database/*demo*.db
+
+.pnpm-store/
+frontend/.next/
+frontend/node_modules/
+.vercel
+.artifacts/
+.codex-finalizer/

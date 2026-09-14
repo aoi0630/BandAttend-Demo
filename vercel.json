@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
+  "regions": [
+    "kix1"
+  ],
+  "services": {
+    "bandattend-api": {
+      "root": ".",
+      "entrypoint": "api.main:app"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "bandattend-api"
+      }
+    }
+  ]
+}
