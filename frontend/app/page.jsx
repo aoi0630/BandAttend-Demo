@@ -546,7 +546,7 @@ function HomeScreen({ setActive, token, currentUser }) {
       setHomeError("");
       try {
         const [data, publicationData] = await Promise.all([
-          fetchJsonCached(token, homePath, { force: homeRefreshKey > 0, errorMessage: "ホーム情報を読み込めませんでした" }),
+          fetchJsonCached(token, homePath, { force: true, errorMessage: "ホーム情報を読み込めませんでした" }),
           fetchJsonCached(token, "/api/publications", { force: homeRefreshKey > 0 }),
         ]);
         if (!ignore) {
@@ -1182,11 +1182,13 @@ function TasksScreen({ token, currentUser, onUnreadNoticesChange }) {
   }
 
   async function toggleTodo(id) {
-    await fetch(`${API_BASE}/api/todos/${id}/toggle`, {
+    const response = await fetch(`${API_BASE}/api/todos/${id}/toggle`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (!response.ok) return;
     invalidateCache(token, "/api/todos");
+    invalidateCache(token, "/api/home");
     loadTodos(true);
   }
 

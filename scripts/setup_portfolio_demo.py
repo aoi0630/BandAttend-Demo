@@ -22,7 +22,7 @@ from database import get_connection  # noqa: E402
 
 DEMO_STUDENT_ID = os.getenv("DEMO_STUDENT_ID", "portfolio-demo")
 DEMO_PIN = os.getenv("DEMO_PIN", "2580")
-DEMO_NAME = "採用担当者様"
+DEMO_NAME = "ゲスト"
 PIN_ITERATIONS = 210_000
 
 
@@ -113,7 +113,7 @@ def seed() -> None:
     ops_id = upsert_member(
         conn,
         "portfolio-ops",
-        "採用担当者様（運営閲覧）",
+        "ゲスト（運営閲覧）",
         0,
         None,
         "システム管理",
@@ -143,6 +143,24 @@ def seed() -> None:
     for values in fake_members:
         member_ids.append(upsert_member(conn, *values))
 
+    extra_family_names = ["阿部", "石井", "上田", "遠藤", "岡田", "加藤", "川口", "斎藤", "坂本", "藤田", "前田", "村上", "渡辺", "青木"]
+    extra_given_names = ["あかり", "かえで", "しおり", "なお", "みお", "ゆう", "れい", "あさひ", "かな", "たくみ", "のぞみ", "はる"]
+    extra_parts = ["フルート", "クラリネット", "サックス", "トランペット", "ホルン", "トロンボーン", "ユーフォニアム", "バスパート", "パーカッション"]
+    for index in range(42):
+        family = extra_family_names[index % len(extra_family_names)]
+        given = extra_given_names[(index * 5) % len(extra_given_names)]
+        grade = index % 3 + 1
+        part = extra_parts[index % len(extra_parts)]
+        member_ids.append(upsert_member(
+            conn,
+            f"demo-member-{index + 1:02d}",
+            f"{family} {given}",
+            grade,
+            f"{2011 - grade}-{index % 12 + 1:02d}-{index % 27 + 1:02d}",
+            part,
+            "一般部員",
+        ))
+
     pin_hash, pin_salt = hash_pin(DEMO_PIN)
     conn.execute(
         """
@@ -164,21 +182,27 @@ def seed() -> None:
     )
 
     already_seeded = conn.execute(
-        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v2'"
+        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v3'"
     ).fetchone()
     if not already_seeded:
         today = date.today()
-        event_rows = [
-            (today - timedelta(days=21), "16:00", "18:00", "合奏", "課題曲・自由曲 合奏", "音楽室"),
-            (today - timedelta(days=14), "09:00", "12:30", "合奏", "休日全体合奏", "講堂"),
-            (today - timedelta(days=7), "16:00", "18:00", "分奏", "木管・金管分奏", "音楽室・視聴覚室"),
-            (today - timedelta(days=2), "16:00", "18:00", "パート練習", "基礎合奏に向けたパート練習", "各教室"),
-            (today, "16:00", "18:30", "通常練習", "放課後練習", "音楽室"),
-            (today + timedelta(days=3), "09:00", "12:00", "合奏", "コンクール曲 合奏", "講堂"),
-            (today + timedelta(days=7), "13:00", "17:00", "合奏", "ホール練習", "市民文化会館リハーサル室"),
-            (today + timedelta(days=14), "09:30", "16:00", "コンクール", "地区吹奏楽コンクール", "市民文化会館"),
-            (today + timedelta(days=28), "10:00", "15:30", "依頼演奏", "地域交流コンサート", "中央公民館"),
-        ]
+        event_rows = []
+        for day_offset in range(-35, 71):
+            event_date = today + timedelta(days=day_offset)
+            if event_date.weekday() not in {0, 2, 3, 5}:  # 月・水・木・土
+                continue
+            if event_date.weekday() == 5:
+                event_rows.append((event_date, "09:00", "13:00", "合奏", "休日全体合奏", "講堂"))
+            elif event_date.weekday() == 2:
+                event_rows.append((event_date, "16:00", "18:30", "分奏", "木管・金管分奏", "音楽室・視聴覚室"))
+            elif event_date.weekday() == 3:
+                event_rows.append((event_date, "16:00", "18:00", "パート練習", "パート別練習", "各教室"))
+            else:
+                event_rows.append((event_date, "16:00", "18:30", "通常練習", "放課後練習", "音楽室"))
+        event_rows.extend([
+            (today + timedelta(days=28), "09:30", "16:00", "コンクール", "地区吹奏楽コンクール", "市民文化会館"),
+            (today + timedelta(days=56), "10:00", "15:30", "依頼演奏", "地域交流コンサート", "中央公民館"),
+        ])
         event_ids = []
         for event_date, start, end, kind, title, location in event_rows:
             cur = conn.execute(
@@ -191,8 +215,9 @@ def seed() -> None:
             )
             event_ids.append(int(cur.lastrowid))
 
+        past_event_ids = [event_id for event_id, row in zip(event_ids, event_rows) if row[0] < today][-16:]
         for member_index, member_id in enumerate(member_ids):
-            for event_index, event_id in enumerate(event_ids[:4]):
+            for event_index, event_id in enumerate(past_event_ids):
                 status = "出席"
                 reason = None
                 absence_type = "なし"
@@ -279,7 +304,7 @@ def seed() -> None:
                     (member_id, f"{login_day.isoformat()} 16:{(member_id * 7) % 60:02d}:00"),
                 )
         conn.execute(
-            "INSERT INTO demo_seed_meta (seed_key) VALUES ('portfolio-v2')"
+            "INSERT INTO demo_seed_meta (seed_key) VALUES ('portfolio-v3')"
         )
 
     conn.commit()
