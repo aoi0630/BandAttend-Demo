@@ -108,7 +108,7 @@ def seed() -> None:
     admin_id = int(admin["id"])
 
     demo_id = upsert_member(
-        conn, DEMO_STUDENT_ID, DEMO_NAME, 2, "2009-04-15", "クラリネット"
+        conn, DEMO_STUDENT_ID, DEMO_NAME, 2, "2009-04-15", "クラリネット", read_only=1
     )
     ops_id = upsert_member(
         conn,
@@ -122,11 +122,22 @@ def seed() -> None:
     )
     fake_members = [
         ("demo-flute", "山田 さくら", 1, "2010-05-12", "フルート", "一般部員"),
+        ("demo-flute-2", "小林 りん", 2, "2009-07-18", "フルート", "パートリーダー"),
+        ("demo-flute-3", "中村 まお", 3, "2008-10-02", "フルート", "一般部員"),
         ("demo-clarinet", "佐藤 はるか", 2, "2009-08-03", "クラリネット", "パートリーダー"),
+        ("demo-clarinet-2", "吉田 えま", 1, "2010-06-26", "クラリネット", "一般部員"),
+        ("demo-clarinet-3", "山本 そら", 3, "2008-12-08", "クラリネット", "一般部員"),
         ("demo-sax", "鈴木 ひなた", 3, "2008-11-21", "サックス", "一般部員"),
+        ("demo-sax-2", "松本 ゆい", 1, "2010-09-17", "サックス", "一般部員"),
         ("demo-trumpet", "田中 あおい", 2, "2009-02-14", "トランペット", "一般部員"),
+        ("demo-trumpet-2", "井上 けんた", 1, "2010-04-09", "トランペット", "パートリーダー"),
         ("demo-horn", "高橋 みなみ", 3, "2008-09-09", "ホルン", "部長"),
+        ("demo-horn-2", "木村 なな", 2, "2009-01-27", "ホルン", "一般部員"),
+        ("demo-trombone", "清水 そうた", 3, "2008-06-11", "トロンボーン", "副部長"),
+        ("demo-euphonium", "森 みさき", 2, "2009-03-30", "ユーフォニアム", "一般部員"),
+        ("demo-bass", "池田 りく", 1, "2010-08-22", "バスパート", "一般部員"),
         ("demo-percussion", "伊藤 つばさ", 1, "2010-12-01", "パーカッション", "一般部員"),
+        ("demo-percussion-2", "橋本 こはる", 3, "2008-05-19", "パーカッション", "パートリーダー"),
     ]
     member_ids = [demo_id]
     for values in fake_members:
@@ -153,16 +164,20 @@ def seed() -> None:
     )
 
     already_seeded = conn.execute(
-        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v1'"
+        "SELECT 1 FROM demo_seed_meta WHERE seed_key='portfolio-v2'"
     ).fetchone()
     if not already_seeded:
         today = date.today()
         event_rows = [
-            (today - timedelta(days=7), "16:00", "18:00", "合奏", "課題曲 合奏", "音楽室"),
-            (today - timedelta(days=2), "16:00", "18:00", "パート練習", "基礎練習", "各教室"),
-            (today, "16:00", "18:00", "通常練習", "放課後練習", "音楽室"),
+            (today - timedelta(days=21), "16:00", "18:00", "合奏", "課題曲・自由曲 合奏", "音楽室"),
+            (today - timedelta(days=14), "09:00", "12:30", "合奏", "休日全体合奏", "講堂"),
+            (today - timedelta(days=7), "16:00", "18:00", "分奏", "木管・金管分奏", "音楽室・視聴覚室"),
+            (today - timedelta(days=2), "16:00", "18:00", "パート練習", "基礎合奏に向けたパート練習", "各教室"),
+            (today, "16:00", "18:30", "通常練習", "放課後練習", "音楽室"),
             (today + timedelta(days=3), "09:00", "12:00", "合奏", "コンクール曲 合奏", "講堂"),
+            (today + timedelta(days=7), "13:00", "17:00", "合奏", "ホール練習", "市民文化会館リハーサル室"),
             (today + timedelta(days=14), "09:30", "16:00", "コンクール", "地区吹奏楽コンクール", "市民文化会館"),
+            (today + timedelta(days=28), "10:00", "15:30", "依頼演奏", "地域交流コンサート", "中央公民館"),
         ]
         event_ids = []
         for event_date, start, end, kind, title, location in event_rows:
@@ -170,20 +185,28 @@ def seed() -> None:
                 """
                 INSERT INTO events
                 (date, start_time, end_time, event_type, title, location, memo, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, 'ポートフォリオ用の架空データです', ?)
+                VALUES (?, ?, ?, ?, ?, ?, '開始15分前までに集合してください。チューナー、譜面、筆記用具を持参します（デモ用の架空予定）。', ?)
                 """,
                 (event_date.isoformat(), start, end, kind, title, location, admin_id),
             )
             event_ids.append(int(cur.lastrowid))
 
         for member_index, member_id in enumerate(member_ids):
-            for event_index, event_id in enumerate(event_ids[:2]):
+            for event_index, event_id in enumerate(event_ids[:4]):
                 status = "出席"
                 reason = None
                 absence_type = "なし"
-                if member_index == 2 and event_index == 1:
+                if (member_index + event_index) % 13 == 0:
+                    status = "欠席"
+                    reason = "学校行事と重なるため（サンプル）"
+                    absence_type = "正当"
+                elif (member_index * 2 + event_index) % 11 == 0:
                     status = "遅刻"
                     reason = "委員会活動のため（サンプル）"
+                    absence_type = "正当"
+                elif (member_index + event_index * 3) % 17 == 0:
+                    status = "早退"
+                    reason = "通院のため（サンプル）"
                     absence_type = "正当"
                 conn.execute(
                     """
@@ -209,6 +232,17 @@ def seed() -> None:
         conn.execute(
             """
             INSERT INTO announcements
+            (target_type, target_part, title, message, is_important, send_to_teacher, created_by)
+            VALUES
+            ('パート', 'クラリネット', 'クラリネットパート連絡',
+             '次回はロングトーンの後、自由曲のAから練習します。個人譜を確認してください。',
+             0, 0, ?)
+            """,
+            (admin_id,),
+        )
+        conn.execute(
+            """
+            INSERT INTO announcements
             (target_type, title, message, is_important, created_by)
             VALUES
             ('全体', '次回合奏のお知らせ',
@@ -228,7 +262,24 @@ def seed() -> None:
             (admin_id,),
         )
         conn.execute(
-            "INSERT INTO demo_seed_meta (seed_key) VALUES ('portfolio-v1')"
+            """
+            INSERT INTO todos
+            (scope, category, title, detail, created_by)
+            VALUES
+            ('全体', '準備', 'コンクール持ち物確認',
+             '譜面、チューナー、筆記用具、昼食、飲み物を前日までに確認する（サンプル）', ?)
+            """,
+            (admin_id,),
+        )
+        for day_offset in range(1, 15):
+            login_day = today - timedelta(days=day_offset)
+            for member_id in member_ids[: max(5, 15 - day_offset // 2)]:
+                conn.execute(
+                    "INSERT INTO login_events (member_id, logged_in_at) VALUES (?, ?)",
+                    (member_id, f"{login_day.isoformat()} 16:{(member_id * 7) % 60:02d}:00"),
+                )
+        conn.execute(
+            "INSERT INTO demo_seed_meta (seed_key) VALUES ('portfolio-v2')"
         )
 
     conn.commit()

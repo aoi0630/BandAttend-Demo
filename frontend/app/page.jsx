@@ -56,6 +56,14 @@ const dataCache = new Map();
 const pendingDataRequests = new Map();
 const API_WAKEUP_NOTICE_DELAY = 2500;
 const SAVED_LOGIN_KEY = "bandattend_saved_login";
+const portfolioDemoRoles = [
+  { label: "一般部員", description: "予定確認・出欠申請・お知らせ", studentId: "portfolio-demo", pin: "2580" },
+  { label: "パートリーダー", description: "自分のパートの承認・出席確認", studentId: "2", pin: "2" },
+  { label: "部長", description: "全部員の承認・運営情報", studentId: "0", pin: "0" },
+  { label: "副部長", description: "部長と連携する運営画面", studentId: "1", pin: "1" },
+  { label: "先生", description: "先生向け予定・お知らせ画面", studentId: "3", pin: "3" },
+  { label: "管理者", description: "管理・分析機能の閲覧", studentId: "portfolio-ops", pin: "2580" },
+];
 const NEXT_PERFORMANCE_CACHE_KEY = "bandattend_next_performance";
 const japaneseWeekdays = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -4507,6 +4515,26 @@ function SignIn({ onLogin }) {
     }
   }
 
+  async function handleDemoRoleLogin(account) {
+    setError("");
+    setLoading(account.label);
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ studentId: account.studentId, pin: account.pin }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof body.detail === "string" ? body.detail : "ログインに失敗しました");
+      onLogin(body);
+    } catch (err) {
+      setError(err instanceof TypeError ? "ログインに失敗しました" : (err.message || "ログインに失敗しました"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handlePinSetup(event) {
     event.preventDefault();
     setError("");
@@ -4581,6 +4609,25 @@ function SignIn({ onLogin }) {
       <div className="signin-card">
         <h1 className="signin-title">BandAttend</h1>
         <p className="signin-copy">吹奏楽部の予定、出席、連絡をひとつに。</p>
+        {isPortfolioDemo ? <div className="demo-role-login">
+          <div className="demo-role-heading">見たい役割を選んでください</div>
+          <p className="demo-role-copy">入力不要で、各役割の画面を体験できます。</p>
+          <div className="demo-role-grid">
+            {portfolioDemoRoles.map((account) => <button
+              type="button"
+              className="demo-role-button"
+              key={account.label}
+              disabled={Boolean(loading)}
+              onClick={() => handleDemoRoleLogin(account)}
+            >
+              <span>{account.label}</span>
+              <small>{loading === account.label ? "接続中です…" : account.description}</small>
+            </button>)}
+          </div>
+          {loading && <div className="signin-status signin-connecting"><span className="loading-spinner" aria-hidden="true" />接続中です</div>}
+          {error && <p className="form-error login-field-error">{error}</p>}
+          <div className="demo-login-notice"><strong>実際の運用では</strong><span>本人のログインID（学籍番号）とパスワードの入力が必要です。この選択式ログインは、作品を安全かつ簡単に体験するためのデモ専用機能です。</span></div>
+        </div> : <>
         <div className="signin-tabs">
           <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setShowPinSetup(false); setError(""); }}>ログイン</button>
           <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setShowPinSetup(false); setError(""); }}>部員登録を申請</button>
@@ -4627,6 +4674,7 @@ function SignIn({ onLogin }) {
         <p className="item-note" style={{ textAlign: "center", marginTop: 24 }}>
           {mode === "login" ? "学籍番号と暗証番号で安全にログインします" : "申請後、管理者の承認をお待ちください"}
         </p>
+        </>}
       </div>
     </main>
   );

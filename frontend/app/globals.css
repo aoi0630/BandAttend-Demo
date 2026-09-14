@@ -2048,6 +2048,88 @@ button {
   text-align: center;
 }
 
+.demo-role-login {
+  display: grid;
+  gap: 12px;
+}
+
+.demo-role-heading {
+  font-size: 18px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.demo-role-copy {
+  color: var(--muted);
+  font-size: 13px;
+  margin: -5px 0 2px;
+  text-align: center;
+}
+
+.demo-role-grid {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.demo-role-button {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  min-height: 78px;
+  padding: 13px 11px;
+  text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.demo-role-button:hover {
+  border-color: #aebcf4;
+  box-shadow: 0 8px 22px rgba(63, 81, 181, .11);
+  transform: translateY(-1px);
+}
+
+.demo-role-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.demo-role-button span {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.demo-role-button small {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.demo-login-notice {
+  background: #eef2ff;
+  border: 1px solid #d8e0ff;
+  border-radius: 14px;
+  display: grid;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 12px 13px;
+}
+
+.demo-login-notice strong {
+  color: var(--brand);
+  font-size: 12px;
+}
+
+.demo-login-notice span {
+  color: #4b5563;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
 .registration-request {
   display: grid;
   gap: 12px;
