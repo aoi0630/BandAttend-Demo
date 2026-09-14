@@ -2,7 +2,10 @@
 
 BandAttendは、吹奏楽部の予定・出欠・承認・連絡・分析を一つにまとめるWebシステムです。
 
-応募用の作品コンセプト、内容、制作過程、制作環境は、[BandAttend_作品説明.txt](BandAttend_作品説明.txt)にまとめています。
+応募用の作品コンセプト、内容、制作過程、制作環境、応募者の連絡先は、次の資料にまとめています。
+
+- [BandAttend 作品説明資料（PDF）](BandAttend_作品説明資料.pdf)
+- [BandAttend 作品説明（テキスト）](BandAttend_作品説明.txt)
 
 ## デモサイト
 
